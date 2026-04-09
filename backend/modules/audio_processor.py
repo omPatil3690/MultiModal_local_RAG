@@ -10,9 +10,9 @@ COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"
 MODEL_SIZE = "small"  # Change to "medium", "large-v2", etc. if needed
 LOCAL_DIR = "local_models"
 
-print(f"📥 Loading Faster-Whisper model '{MODEL_SIZE}' with cache in {LOCAL_DIR} on {DEVICE} ...")
+print(f"Loading Faster-Whisper model '{MODEL_SIZE}' with cache in {LOCAL_DIR} on {DEVICE} ...")
 model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE, download_root=LOCAL_DIR)
-print("✅ Model loaded successfully.")
+print("Model loaded successfully.")
 
 def transcribe_audio(audio_path):
     """
