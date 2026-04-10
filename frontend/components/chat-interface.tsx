@@ -43,6 +43,7 @@ interface Message {
   attachments?: MessageAttachment[]
   isTyping?: boolean
   sources?: Citation[]
+  queryUsed?: string  // The query that was used for retrieval
 }
 
 export function ChatInterface() {
@@ -206,6 +207,7 @@ export function ChatInterface() {
         content: answerText,
         timestamp: new Date(),
         sources,
+        queryUsed: result.query_used || "",  // Include the query used for retrieval
       }
       setMessages((prev) => [...prev, aiMessage])
     } catch (err) {
@@ -289,6 +291,7 @@ export function ChatInterface() {
             content: typeof answerText === "string" ? answerText : JSON.stringify(answerText),
             timestamp: new Date(),
             sources,
+            queryUsed: result.query_used || "",  // Include the query used for retrieval
           }
           setMessages((prev) =>
             prev.map((m) => (m.id === messageId ? newResponse : m))

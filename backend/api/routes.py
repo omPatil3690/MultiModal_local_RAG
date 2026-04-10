@@ -34,7 +34,7 @@ async def upload_file(file: UploadFile = File(...)):
     with open(save_path, "wb") as f:
         f.write(await file.read())
 
-    if file_ext == ".pdf":
+    if file_ext == ".txt":
         results = process_pdf(save_path)
         for r in results:
             chunks = chunk_text_with_overlap(r["text"])
@@ -48,61 +48,144 @@ async def upload_file(file: UploadFile = File(...)):
             add_to_index(chunk, "image", file.filename)
 
     elif file_ext in [".mp3", ".wav", ".m4a"]:
+        print(f"\n[DEBUG UPLOAD] Processing audio file: {file.filename}")
         transcript = transcribe_audio(save_path)
+        print(f"[DEBUG UPLOAD] Transcript length: {len(transcript)}")
+        print(f"[DEBUG UPLOAD] Transcript preview: {transcript[:200]}...")
+        
         chunks = chunk_text_with_overlap(transcript)
-        for chunk in chunks:
+        print(f"[DEBUG UPLOAD] Created {len(chunks)} chunks from audio transcript")
+        
+        for i, chunk in enumerate(chunks):
+            print(f"[DEBUG UPLOAD] Adding chunk {i+1}/{len(chunks)}, chunk length: {len(chunk)}")
             add_to_index(chunk, "audio", file.filename)
+        
+        print(f"[DEBUG UPLOAD] All audio chunks added to index")
 
     else:
         return {"error": "Unsupported file type"}
 
+    print(f"[DEBUG UPLOAD] Calling save_index()")
     save_index()
+    print(f"[DEBUG UPLOAD] Upload complete for {file.filename}")
     return {"message": f"{file.filename} processed & indexed."}
 
 
 @router.post("/ask/")
-async def ask_question(query: str = Form(...), file: UploadFile | None = File(None)):
+async def ask_question(
+    query: str = Form(...), 
+    file: UploadFile | None = File(None),
+    retrieval_method: str = Form("hybrid", description="Retrieval method: semantic, bm25, keyword, tfidf, hybrid")
+):
     """
     Ask a question. If a PDF/Image/Audio file is attached, first extract its
     content (like in /upload but without indexing) and append to the query.
     Then retrieve the answer from FAISS + LLM.
+    
+    retrieval_method options:
+    - semantic: FAISS semantic search only
+    - bm25: BM25 algorithm only
+    - keyword: Keyword matching only
+    - tfidf: TF-IDF similarity only
+    - hybrid: Combined semantic + BM25 + keyword (default)
     """
+    print("\n=== /ask/ ENDPOINT CALLED ===")
+    print(f"[DEBUG] Query: {query[:100]}..." if len(query) > 100 else f"[DEBUG] Query: {query}")
+    print(f"[DEBUG] File attached: {file is not None}")
+    print(f"[DEBUG] Retrieval method: {retrieval_method}")
+    if file:
+        print(f"[DEBUG] File name: {file.filename}")
+    
     augmented_query = query
 
     # If a file is provided, extract its content and append to the query
     if file is not None:
-        file_ext = os.path.splitext(file.filename)[1].lower()
-        os.makedirs("data/uploads", exist_ok=True)
-        # Use a unique filename to avoid collisions
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-        save_path = f"data/uploads/ask_{timestamp}_{file.filename}"
+        print("\n[DEBUG] File processing started...")
+        try:
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            print(f"[DEBUG] File extension: {file_ext}")
+            os.makedirs("data/uploads", exist_ok=True)
+            # Use a unique filename to avoid collisions
+            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+            save_path = f"data/uploads/ask_{timestamp}_{file.filename}"
+            print(f"[DEBUG] File save path: {save_path}")
 
-        with open(save_path, "wb") as f:
-            f.write(await file.read())
+            with open(save_path, "wb") as f:
+                f.write(await file.read())
+            print(f"[DEBUG] File saved successfully")
 
-        extracted_text = None
+            extracted_text = None
 
-        if file_ext == ".pdf":
-            results = process_pdf(save_path)  # list of {"page": int, "text": str}
-            extracted_text = "\n\n".join(r["text"] for r in results if r.get("text"))
+            if file_ext == ".pdf":
+                print("[DEBUG] Processing PDF...")
+                results = process_pdf(save_path)  # list of {"page": int, "text": str}
+                print(f"[DEBUG] PDF processed, got {len(results)} results")
+                extracted_text = "\n\n".join(r["text"] for r in results if r.get("text"))
+                print(f"[DEBUG] Extracted text length: {len(extracted_text)}")
 
-        elif file_ext in [".png", ".jpg", ".jpeg"]:
-            extracted_text = describe_image(save_path)
+            elif file_ext in [".png", ".jpg", ".jpeg"]:
+                print("[DEBUG] Processing image...")
+                extracted_text = describe_image(save_path)
+                print(f"[DEBUG] Image caption length: {len(extracted_text)}")
 
-        elif file_ext in [".mp3", ".wav", ".m4a"]:
-            extracted_text = transcribe_audio(save_path)
+            elif file_ext in [".mp3", ".wav", ".m4a", ".webm", ".ogg", ".flac"]:
+                print(f"[DEBUG] Processing audio file with extension: {file_ext}")
+                print(f"[DEBUG] Audio file size: {os.path.getsize(save_path)} bytes")
+                try:
+                    extracted_text = transcribe_audio(save_path)
+                    print(f"[DEBUG] Audio transcription completed")
+                    print(f"[DEBUG] Audio transcription length: {len(extracted_text)}")
+                    if extracted_text:
+                        print(f"[DEBUG] Audio transcription preview: {extracted_text[:200]}...")
+                    else:
+                        print(f"[DEBUG] ⚠️ WARNING: Audio transcription returned empty string!")
+                except Exception as e:
+                    print(f"[DEBUG] ⚠️ Audio transcription exception: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    extracted_text = None
 
-        else:
-            return {"error": "Unsupported file type"}
+            else:
+                print(f"[DEBUG] Unsupported file type: {file_ext}")
+                return {"error": "Unsupported file type"}
 
-        if extracted_text and extracted_text.strip():
-            augmented_query = (
-                f"{query}\n\nAdditional context from attached file ({file.filename}):\n{extracted_text}"
-            )
+            if extracted_text and extracted_text.strip():
+                print(f"[DEBUG] ✓ Text extracted successfully (length: {len(extracted_text)})")
+                print(f"[DEBUG] Original query: {query}")
+                augmented_query = (
+                    f"{query}\n\nAdditional context from attached file ({file.filename}):\n{extracted_text}"
+                )
+                print(f"[DEBUG] Augmented query length: {len(augmented_query)}")
+                print(f"[DEBUG] Augmented query preview:\n{augmented_query[:300]}...")
+            else:
+                print(f"[DEBUG] ✗ No text extracted from file or text is empty")
+                print(f"[DEBUG] extracted_text type: {type(extracted_text)}, value: '{extracted_text}'")
+                print(f"[DEBUG] ⚠️ WARNING: File was processed but no text was extracted!")
+                print(f"[DEBUG] Will use original query only: {query}")
+                augmented_query = query
+        except Exception as e:
+            print(f"[ERROR] File processing failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
 
-    answer = retrieve_answer(augmented_query)
-    # answer is a dict {"answer": str, "citations": [...]}
-    return answer
+    print(f"\n[DEBUG] === QUERY SUMMARY ===")
+    print(f"[DEBUG] Using query (length: {len(augmented_query)})")
+    print(f"[DEBUG] Query content:\n{augmented_query}")
+    print(f"[DEBUG] Retrieval method: {retrieval_method}")
+    print(f"[DEBUG] Calling retrieve_answer...")
+    try:
+        answer = retrieve_answer(augmented_query, retrieval_method=retrieval_method)
+        print("[DEBUG] retrieve_answer completed successfully")
+        print(f"[DEBUG] Answer length: {len(answer.get('answer', ''))}")
+        print(f"[DEBUG] Citations count: {len(answer.get('citations', []))}")
+        # answer is a dict {"answer": str, "citations": [...]}
+        return answer
+    except Exception as e:
+        print(f"[ERROR] retrieve_answer failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @router.get("/uploads/{filename}")
