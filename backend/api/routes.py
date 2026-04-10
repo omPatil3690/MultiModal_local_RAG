@@ -22,6 +22,35 @@ except Exception:
 
 router = APIRouter()
 
+# Function to save audio transcriptions for debugging
+def save_audio_transcription(filename: str, transcription: str, timestamp: str):
+    """Save transcribed audio to a JSON file for debugging."""
+    os.makedirs("debug_audio", exist_ok=True)
+    debug_file = "debug_audio/audio_transcriptions.json"
+    
+    # Load existing transcriptions or create new list
+    transcriptions = []
+    if os.path.exists(debug_file):
+        try:
+            with open(debug_file, "r") as f:
+                transcriptions = json.load(f)
+        except:
+            transcriptions = []
+    
+    # Add new transcription
+    transcriptions.append({
+        "timestamp": timestamp,
+        "filename": filename,
+        "transcription": transcription,
+        "length": len(transcription)
+    })
+    
+    # Save back to file
+    with open(debug_file, "w") as f:
+        json.dump(transcriptions, f, indent=2)
+    
+    print(f"[DEBUG] Audio transcription saved to {debug_file}")
+
 @router.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     """
@@ -49,9 +78,13 @@ async def upload_file(file: UploadFile = File(...)):
 
     elif file_ext in [".mp3", ".wav", ".m4a"]:
         print(f"\n[DEBUG UPLOAD] Processing audio file: {file.filename}")
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
         transcript = transcribe_audio(save_path)
         print(f"[DEBUG UPLOAD] Transcript length: {len(transcript)}")
         print(f"[DEBUG UPLOAD] Transcript preview: {transcript[:200]}...")
+        
+        # Save transcription to JSON for debugging
+        save_audio_transcription(file.filename, transcript, timestamp)
         
         chunks = chunk_text_with_overlap(transcript)
         print(f"[DEBUG UPLOAD] Created {len(chunks)} chunks from audio transcript")
@@ -101,9 +134,14 @@ async def ask_question(
     # If a file is provided, extract its content and append to the query
     if file is not None:
         print("\n[DEBUG] File processing started...")
+        print(f"[DEBUG] File object received: {file}")
+        print(f"[DEBUG] File filename: {file.filename}")
         try:
             file_ext = os.path.splitext(file.filename)[1].lower()
-            print(f"[DEBUG] File extension: {file_ext}")
+            print(f"[DEBUG] ✓ File extension extracted: '{file_ext}'")
+            print(f"[DEBUG] ✓ Full filename: '{file.filename}'")
+            print(f"[DEBUG] ✓ File extension type: {type(file_ext)}")
+            
             os.makedirs("data/uploads", exist_ok=True)
             # Use a unique filename to avoid collisions
             timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
@@ -116,8 +154,13 @@ async def ask_question(
 
             extracted_text = None
 
+            print(f"[DEBUG] === CONDITION CHECK ===")
+            print(f"[DEBUG] Checking: file_ext == '.pdf' ? {file_ext} == '.pdf' ? {file_ext == '.pdf'}")
+            print(f"[DEBUG] Checking: file_ext in ['.png', '.jpg', '.jpeg'] ? {file_ext in ['.png', '.jpg', '.jpeg']}")
+            print(f"[DEBUG] Checking: file_ext in ['.mp3', '.wav', ...] ? {file_ext in ['.mp3', '.wav', '.m4a', '.webm', '.ogg', '.flac']}")
+            
             if file_ext == ".pdf":
-                print("[DEBUG] Processing PDF...")
+                print("[DEBUG] ✓ ENTERED PDF CONDITION")
                 results = process_pdf(save_path)  # list of {"page": int, "text": str}
                 print(f"[DEBUG] PDF processed, got {len(results)} results")
                 extracted_text = "\n\n".join(r["text"] for r in results if r.get("text"))
@@ -137,13 +180,19 @@ async def ask_question(
                     print(f"[DEBUG] Audio transcription length: {len(extracted_text)}")
                     if extracted_text:
                         print(f"[DEBUG] Audio transcription preview: {extracted_text[:200]}...")
+                        # Save transcription to JSON for debugging
+                        save_audio_transcription(file.filename, extracted_text, timestamp)
                     else:
                         print(f"[DEBUG] ⚠️ WARNING: Audio transcription returned empty string!")
+                        # Still save empty transcription for debugging
+                        save_audio_transcription(file.filename, "", timestamp)
                 except Exception as e:
                     print(f"[DEBUG] ⚠️ Audio transcription exception: {str(e)}")
                     import traceback
                     traceback.print_exc()
                     extracted_text = None
+                    # Save error state
+                    save_audio_transcription(file.filename, f"[ERROR] {str(e)}", timestamp)
 
             else:
                 print(f"[DEBUG] Unsupported file type: {file_ext}")
