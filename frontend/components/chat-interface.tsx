@@ -146,16 +146,24 @@ export function ChatInterface() {
     setPendingAttachments([])
     setIsTyping(true)
 
-    // call backend with text (and optionally mention attachments by name)
+    // call backend with text and file (multipart/form-data)
     try {
-      const formData = new URLSearchParams()
+      const formData = new FormData()
       formData.append("query", userMessage.content)
-      // you could add additional metadata about attachments if your backend supports it
+      
+      // Add file if there's a pending attachment
+      if (pendingAttachments.length > 0) {
+        const attachment = pendingAttachments[0] // Get first attachment
+        // Convert blob URL back to file - we need to fetch it
+        const response = await fetch(attachment.url)
+        const blob = await response.blob()
+        formData.append("file", blob, attachment.name)
+        console.log(`[DEBUG FRONTEND] Appending file to form: ${attachment.name}`)
+      }
+      
       const response = await fetch("http://127.0.0.1:8000/ask/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        // Don't set Content-Type header - browser will set it automatically with boundary
         body: formData,
       })
       const result = await response.json()
