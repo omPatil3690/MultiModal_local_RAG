@@ -5,6 +5,7 @@ from modules.models import (
     load_metadata_store,
     load_bm25_data,
     save_bm25_data,
+    OLLAMA_TEXT_MODEL,
 )
 import os
 from dotenv import load_dotenv
@@ -377,14 +378,14 @@ def retrieve_answer(query, top_k=3, retrieval_method="hybrid"):
     # Step 1: Ask Ollama what context it needs
     instruction = (
         "You are an assistant with access to a vector store of documents.\n"
-        "Decide what information you need to answer the user's question. "
+        "Decide what information you need to answer the user's question.All kinds of hints to support good chunks retrieval can be added."
         "Return a clear query or keywords for retrieval.\n"
         f"User Question: {query}"
     )
     
     try:
         retrieval_hint = ollama.chat(
-            model=os.getenv("OLLAMA_VL_MODEL", "qwen3:8b"),
+            model=OLLAMA_TEXT_MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful expert assistant."},
                 {"role": "user", "content": instruction}
@@ -428,7 +429,7 @@ def retrieve_answer(query, top_k=3, retrieval_method="hybrid"):
 
     try:
         response = ollama.chat(
-            model=os.getenv("OLLAMA_VL_MODEL", "qwen3:8b"),
+            model=OLLAMA_TEXT_MODEL,
             messages=[
                 {"role": "system", "content": "You are a helpful expert assistant."},
                 {"role": "user", "content": final_prompt}

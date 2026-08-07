@@ -18,8 +18,9 @@ from config import VECTOR_DIR
 
 load_dotenv()
 
-# Configurable via env var; default VL model name for Ollama
+# Configurable via env vars; separate models for vision and text tasks
 OLLAMA_VL_MODEL = os.getenv("OLLAMA_VL_MODEL", "qwen2.5vl:7b")
+OLLAMA_TEXT_MODEL = os.getenv("OLLAMA_TEXT_MODEL", "qwen3:8b")
 
 # Ensure vectorstore folder exists
 os.makedirs(VECTOR_DIR, exist_ok=True)
@@ -215,6 +216,7 @@ __all__ = [
     "save_bm25_data",
     "get_whisper_model",
     "OLLAMA_VL_MODEL",
+    "OLLAMA_TEXT_MODEL",
     "INDEX_FILE",
     "METADATA_FILE",
     "BM25_CORPUS_FILE",
