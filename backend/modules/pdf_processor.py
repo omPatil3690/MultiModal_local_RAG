@@ -3,6 +3,10 @@ import fitz  # this comes from PyMuPDF
 from PIL import Image
 import os
 import ollama
+from dotenv import load_dotenv
+from modules.models import OLLAMA_VL_MODEL
+
+load_dotenv()
 
 print("[DEBUG PDF] Initializing pdf_processor...")
 
@@ -24,7 +28,7 @@ def extract_page_with_vllm(page, page_number):
             "If a region contains a non-text image, describe it in detail."
         )
         
-        model = os.getenv("OLLAMA_VL_MODEL", "gemma3:4b")
+        model = os.getenv("OLLAMA_VL_MODEL", OLLAMA_VL_MODEL)
         print(f"[DEBUG PDF] Calling ollama.chat with model: {model} for page {page_number}")
         print("[DEBUG PDF] Sending page to Ollama...")
         

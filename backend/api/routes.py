@@ -63,20 +63,27 @@ async def upload_file(file: UploadFile = File(...)):
     with open(save_path, "wb") as f:
         f.write(await file.read())
 
-    if file_ext == ".txt":
-        results = process_pdf(save_path)
-        for r in results:
-            chunks = chunk_text_with_overlap(r["text"])
+    if file_ext in [".pdf", ".txt"]:
+        if file_ext == ".pdf":
+            results = process_pdf(save_path)
+            for r in results:
+                chunks = chunk_text_with_overlap(r["text"])
+                for chunk in chunks:
+                    add_to_index(chunk, "text", file.filename, page_num=r["page"])
+        else:
+            with open(save_path, "r", encoding="utf-8", errors="ignore") as f:
+                text_content = f.read()
+            chunks = chunk_text_with_overlap(text_content)
             for chunk in chunks:
-                add_to_index(chunk, "text", file.filename, page_num=r["page"])
+                add_to_index(chunk, "text", file.filename, page_num=1)
 
-    elif file_ext in [".png", ".jpg", ".jpeg"]:
+    elif file_ext in [".png", ".jpg", ".jpeg", ".webp"]:
         caption = describe_image(save_path)
         chunks = chunk_text_with_overlap(caption)
         for chunk in chunks:
             add_to_index(chunk, "image", file.filename)
 
-    elif file_ext in [".mp3", ".wav", ".m4a"]:
+    elif file_ext in [".mp3", ".wav", ".m4a", ".webm", ".ogg", ".flac"]:
         print(f"\n[DEBUG UPLOAD] Processing audio file: {file.filename}")
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
         transcript = transcribe_audio(save_path)
@@ -155,18 +162,23 @@ async def ask_question(
             extracted_text = None
 
             print(f"[DEBUG] === CONDITION CHECK ===")
-            print(f"[DEBUG] Checking: file_ext == '.pdf' ? {file_ext} == '.pdf' ? {file_ext == '.pdf'}")
-            print(f"[DEBUG] Checking: file_ext in ['.png', '.jpg', '.jpeg'] ? {file_ext in ['.png', '.jpg', '.jpeg']}")
+            print(f"[DEBUG] Checking: file_ext in ['.pdf', '.txt'] ? {file_ext in ['.pdf', '.txt']}")
+            print(f"[DEBUG] Checking: file_ext in ['.png', '.jpg', '.jpeg', '.webp'] ? {file_ext in ['.png', '.jpg', '.jpeg', '.webp']}")
             print(f"[DEBUG] Checking: file_ext in ['.mp3', '.wav', ...] ? {file_ext in ['.mp3', '.wav', '.m4a', '.webm', '.ogg', '.flac']}")
             
-            if file_ext == ".pdf":
-                print("[DEBUG] ✓ ENTERED PDF CONDITION")
-                results = process_pdf(save_path)  # list of {"page": int, "text": str}
-                print(f"[DEBUG] PDF processed, got {len(results)} results")
-                extracted_text = "\n\n".join(r["text"] for r in results if r.get("text"))
-                print(f"[DEBUG] Extracted text length: {len(extracted_text)}")
+            if file_ext in [".pdf", ".txt"]:
+                print(f"[DEBUG] ✓ ENTERED PDF/TXT CONDITION ({file_ext})")
+                if file_ext == ".pdf":
+                    results = process_pdf(save_path)  # list of {"page": int, "text": str}
+                    print(f"[DEBUG] PDF processed, got {len(results)} results")
+                    extracted_text = "\n\n".join(r["text"] for r in results if r.get("text"))
+                    print(f"[DEBUG] Extracted text length: {len(extracted_text)}")
+                else:
+                    with open(save_path, "r", encoding="utf-8", errors="ignore") as f:
+                        extracted_text = f.read()
+                    print(f"[DEBUG] TXT processed, length: {len(extracted_text)}")
 
-            elif file_ext in [".png", ".jpg", ".jpeg"]:
+            elif file_ext in [".png", ".jpg", ".jpeg", ".webp"]:
                 print("[DEBUG] Processing image...")
                 extracted_text = describe_image(save_path)
                 print(f"[DEBUG] Image caption length: {len(extracted_text)}")

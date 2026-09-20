@@ -1,6 +1,7 @@
 import ollama
 import os
 from dotenv import load_dotenv
+from modules.models import OLLAMA_VL_MODEL
 
 print("[DEBUG IMAGE] Initializing image_processor...")
 load_dotenv()
@@ -12,7 +13,7 @@ def describe_image(image_path):
     
     try:
         prompt = "Describe this image in detail. If text is present, extract it."
-        model = os.getenv("OLLAMA_VL_MODEL", "qwen2.5vl:7b")
+        model = os.getenv("OLLAMA_VL_MODEL", OLLAMA_VL_MODEL)
         print(f"[DEBUG IMAGE] Calling ollama.chat with model: {model}")
         print("[DEBUG IMAGE] Sending image to Ollama...")
         
